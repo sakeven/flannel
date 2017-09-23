@@ -61,6 +61,8 @@ func newVXLANDevice(devAttrs *vxlanDeviceAttrs) (*vxlanDevice, error) {
 	}, nil
 }
 
+// ensureLink 用于保证有一个可用的 vxlan 设备。
+// 如果存在相同配置的 vxlan 设备，则直接返回，否则创建相应的 vxlan 设备。
 func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 	err := netlink.LinkAdd(vxlan)
 	if err == syscall.EEXIST {
@@ -91,12 +93,16 @@ func ensureLink(vxlan *netlink.Vxlan) (*netlink.Vxlan, error) {
 		return nil, err
 	}
 
+	// 以下两步用于确认 vxlan 设备已经添加。
+
+	// 1. 查找 index 为 ifindex 的设备
 	ifindex := vxlan.Index
 	link, err := netlink.LinkByIndex(vxlan.Index)
 	if err != nil {
 		return nil, fmt.Errorf("can't locate created vxlan device with index %v", ifindex)
 	}
 
+	// 2. 检查找到的设备是不是 vxlan
 	var ok bool
 	if vxlan, ok = link.(*netlink.Vxlan); !ok {
 		return nil, fmt.Errorf("created vxlan device with index %v is not vxlan", ifindex)

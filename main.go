@@ -164,6 +164,8 @@ func newSubnetManager() (subnet.Manager, error) {
 	}
 
 	// Attempt to renew the lease for the subnet specified in the subnetFile
+	// 获取保存在文件的 subnet。在每次启动时，都会把 subnet 配置写到文件里，
+	// 这样在下次重启时，可以直接从文件中获得。
 	prevSubnet := ReadSubnetFromSubnetFile(opts.subnetFile)
 
 	return etcdv2.NewLocalManager(cfg, prevSubnet)
@@ -284,10 +286,12 @@ func main() {
 	}
 
 	// Set up ipMasq if needed
+	// ip 伪装
 	if opts.ipMasq {
 		go setupIPMasq(config, bn)
 	}
 
+	// 在每次启动时，都会把 subnet 配置写到文件里，这样在下次重启时，可以直接从文件中获得。
 	if err := WriteSubnetFile(opts.subnetFile, config.Network, opts.ipMasq, bn); err != nil {
 		// Continue, even though it failed.
 		log.Warningf("Failed to write subnet file: %s", err)
@@ -357,6 +361,7 @@ func getConfig(ctx context.Context, sm subnet.Manager) (*subnet.Config, error) {
 	}
 }
 
+// MonitorLease 监听本 subnet 的变化事件
 func MonitorLease(ctx context.Context, sm subnet.Manager, bn backend.Network, wg *sync.WaitGroup) error {
 	// Use the subnet manager to start watching leases.
 	evts := make(chan subnet.Event)
@@ -373,6 +378,7 @@ func MonitorLease(ctx context.Context, sm subnet.Manager, bn backend.Network, wg
 	for {
 		select {
 		case <-time.After(dur):
+			// 超时后需要重新租赁 subnet
 			err := sm.RenewLease(ctx, bn.Lease())
 			if err != nil {
 				log.Error("Error renewing lease (trying again in 1 min): ", err)

@@ -57,6 +57,7 @@ func (nw *network) Run(ctx context.Context) {
 	events := make(chan []subnet.Event)
 	wg.Add(1)
 	go func() {
+		// 监听所有 subnet 的事件
 		subnet.WatchLeases(ctx, nw.subnetMgr, nw.SubnetLease, events)
 		log.V(1).Info("WatchLeases exited")
 		wg.Done()
@@ -107,6 +108,8 @@ func (nw *network) handleSubnetEvents(batch []subnet.Event) {
 		}
 		vxlanRoute.SetFlag(syscall.RTNH_F_ONLINK)
 
+		// 当主机位于同一个子网，可以直接路由而不需要 vxlan，这样可以提高效率。与 host-gw 类似。
+		// 两台主机直连判断方法为：仅有一条路由信息，且不存在网关。
 		// directRouting is where the remote host is on the same subnet so vxlan isn't required.
 		directRoute := netlink.Route{
 			Dst: sn.ToIPNet(),
